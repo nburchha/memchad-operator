@@ -19,21 +19,20 @@ package controller
 import (
 	"context"
 	"fmt"
+	"time"
+
+	cachev1alpha1 "github.com/nburchha/memchad-operator.git/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
-	"time"
-
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	cachev1alpha1 "github.com/nburchha/memchad-operator.git/api/v1alpha1"
 )
 
 const (
@@ -77,7 +76,7 @@ func (r *MemcachedReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
-	if memcached.Status.Conditions == nil || len(memcached.Status.Conditions) == 0 {
+	if len(memcached.Status.Conditions) == 0 {
 		meta.SetStatusCondition(&memcached.Status.Conditions, metav1.Condition{Type: typeAvailableMemcached, Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
 		if err = r.Status().Update(ctx, memcached); err != nil {
 			log.Error(err, "Failed to update Memcached status")
@@ -97,7 +96,7 @@ func (r *MemcachedReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		if err != nil {
 			log.Error(err, "Failed to create new deployment resource for Memcached")
 
-			//update status
+			// update status
 			meta.SetStatusCondition(&memcached.Status.Conditions, metav1.Condition{Type: typeAvailableMemcached,
 				Status: metav1.ConditionFalse, Reason: "Reconciling",
 				Message: fmt.Sprintf("Failed to create deployment for the custom resource (%s): (%s)", memcached.Name, err)})
@@ -117,7 +116,7 @@ func (r *MemcachedReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 
 		// Deployment created successfully
-		//requeue reconciliation to ensure the state
+		// requeue reconciliation to ensure the state
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 	} else if err != nil {
 		log.Error(err, "Failed to get Deployment")
@@ -131,13 +130,13 @@ func (r *MemcachedReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		if err = r.Update(ctx, found); err != nil {
 			log.Error(err, "Failed to update Deployment", "Deployment.Namespace", found.Namespace, "Deployment.Name", found.Name)
 
-			//refetch before setting status, so we have most up to date status
+			// refetch before setting status, so we have most up to date status
 			if err := r.Get(ctx, req.NamespacedName, memcached); err != nil {
 				log.Error(err, "Failed to re-fetch Memcached")
 				return ctrl.Result{}, err
 			}
 
-			//update status
+			// update status
 			meta.SetStatusCondition(&memcached.Status.Conditions, metav1.Condition{Type: typeAvailableMemcached,
 				Status: metav1.ConditionFalse, Reason: "Resizing",
 				Message: fmt.Sprintf("Failed to update the size for the custom resource (%s): (%s)", memcached.Name, err)})
@@ -149,11 +148,11 @@ func (r *MemcachedReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 			return ctrl.Result{}, err
 		}
-		//updated size -> requeue reconciliation so we have the latest state before updating
+		// updated size -> requeue reconciliation so we have the latest state before updating
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	//update the status
+	// update the status
 	meta.SetStatusCondition(&memcached.Status.Conditions, metav1.Condition{Type: typeAvailableMemcached,
 		Status: metav1.ConditionTrue, Reason: "Reconciling",
 		Message: fmt.Sprintf("Deployment for custom resource (%s) with %d replicas created successfully", memcached.Name, size)})
